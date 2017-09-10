@@ -95,6 +95,9 @@
 #ifdef WITH_BHYVE
 # include "bhyve/bhyve_driver.h"
 #endif
+#ifdef WITH_ZVM
+# include "zvm/zvm_driver.h"
+#endif
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
