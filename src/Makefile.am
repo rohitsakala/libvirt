@@ -730,6 +730,7 @@ DRIVER_SOURCE_FILES = \
 	$(NULL)
 
 STATEFUL_DRIVER_SOURCE_FILES = \
+	$(ZVM_DRIVER_SOURCES) \
 	$(BHYVE_DRIVER_SOURCES) \
 	$(INTERFACE_DRIVER_SOURCES) \
 	$(LIBXL_DRIVER_SOURCES) \
@@ -996,6 +997,10 @@ VZ_DRIVER_SOURCES =				\
 		vz/vz_utils.h			\
 		vz/vz_sdk.h			\
 		vz/vz_sdk.c
+
+ZVM_DRIVER_SOURCES =			 \
+		zvm/zvm_driver.c			\
+		zvm/zvm_driver.h
 
 BHYVE_DRIVER_SOURCES =						\
 		bhyve/bhyve_capabilities.c			\
@@ -1590,6 +1595,14 @@ libvirt_driver_vz_impl_la_CFLAGS = \
 libvirt_driver_vz_impl_la_SOURCES = $(VZ_DRIVER_SOURCES)
 libvirt_driver_vz_impl_la_LIBADD =  $(PARALLELS_SDK_LIBS) $(LIBNL_LIBS)
 endif WITH_VZ
+
+if WITH_ZVM
+noinst_LTLIBRARIES += libvirt_driver_zvm.la
+libvirt_la_BUILT_LIBADD += libvirt_driver_zvm.la
+libvirt_driver_zvm_la_CFLAGS = \
+		-I$(srcdir)/conf $(AM_CFLAGS)
+libvirt_driver_zvm_la_SOURCES = $(ZVM_DRIVER_SOURCES)
+endif WITH_ZVM
 
 if WITH_BHYVE
 noinst_LTLIBRARIES += libvirt_driver_bhyve_impl.la

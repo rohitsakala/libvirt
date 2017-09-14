@@ -409,6 +409,10 @@ virGlobalInit(void)
     if (testRegister() == -1)
         goto error;
 # endif
+# ifdef WITH_ZVM
+    if (zvmRegister() == -1)
+        goto error;
+# endif
 # ifdef WITH_OPENVZ
     if (openvzRegister() == -1)
         goto error;
