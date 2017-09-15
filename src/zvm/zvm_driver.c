@@ -21,16 +21,69 @@
  */
 
 
-#include "virsysinfo.h"
+ #include <config.h>
 
-#include "zvm_driver.h"
+ #include <sys/types.h>
+ #include <sys/poll.h>
+ #include <sys/time.h>
+ #include <dirent.h>
+ #include <limits.h>
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdarg.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ #include <errno.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <signal.h>
+ #include <paths.h>
+ #include <sys/wait.h>
+ #include <sys/ioctl.h>
+ #include <sys/un.h>
+ #include <byteswap.h>
+
+
+ #include "zvm_driver.h"
+
+ #include "virerror.h"
+ #include "virlog.h"
+ #include "datatypes.h"
+ #include "virbuffer.h"
+ #include "capabilities.h"
+ #include "viralloc.h"
+ #include "viruuid.h"
+ #include "domain_conf.h"
+ #include "domain_audit.h"
+ #include "node_device_conf.h"
+ #include "virpci.h"
+ #include "virusb.h"
+ #include "virprocess.h"
+ #include "libvirt_internal.h"
+ #include "virxml.h"
+ #include "cpu/cpu.h"
+ #include "virsysinfo.h"
+ #include "domain_nwfilter.h"
+ #include "nwfilter_conf.h"
+ #include "virhook.h"
+ #include "virstoragefile.h"
+ #include "virfile.h"
+ #include "configmake.h"
+ #include "virthreadpool.h"
+ #include "virkeycode.h"
+ #include "virnodesuspend.h"
+ #include "virtime.h"
+ #include "virtypedparam.h"
+ #include "virbitmap.h"
+ #include "virstring.h"
+ #include "viraccessapicheck.h"
 
 #define VIR_FROM_THIS	VIR_FROM_ZVM
 
 VIR_LOG_INIT("zvm.zvm_driver");
 
 
-static char *zvmConnectGetHostname(virConnectPtr conn)
+static char *zvmConnectGetHostname(void)
 {
     if (virConnectGetHostnameEnsureACL(conn) < 0)
         return NULL;
@@ -38,31 +91,22 @@ static char *zvmConnectGetHostname(virConnectPtr conn)
     return virGetHostname();
 }
 
-
 /*----- Register with libvirt.c, and initialize zVM drivers. -----*/
 
 /* The interface which we export upwards to libvirt.c. */
 
-static virHypervisorDriver zvmHypervisorDriver = {
+static virDriver zvmDriver = {
     .name = "ZVM",
     .connectGetHostname = zvmConnectGetHostname,
 };
 
-static virConnectDriver zvmConnectDriver = {
-    .hypervisorDriver = &zvmHypervisorDriver,
-};
-
 static virStateDriver zvmStateDriver = {
-    .name = "zvm",
+    .name = "ZVM",
 };
 
-int
-zvmRegister(void)
+int zvmRegister(void)
 {
-    if (virRegisterConnectDriver(&zvmConnectDriver,
-                                 true) < 0)
-        return -1;
-    if (virRegisterStateDriver(&zvmStateDriver) < 0)
-        return -1;
+    virRegisterDriver(&zvmDriver);
+    virRegisterStateDriver(&zvmStateDriver);
     return 0;
 }

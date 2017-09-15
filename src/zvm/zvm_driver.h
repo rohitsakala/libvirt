@@ -1,5 +1,5 @@
 /*
- * zvm_driver.h: zvm driver 
+ * zvm_driver.h: zvm driver
  *
  * Copyright (C) 2017 Sakala Venkata Krishna Rohit
  *
@@ -24,6 +24,6 @@
 #ifndef ZVM_DRIVER_H
 # define ZVM_DRIVER_H
 
-int zvmRegister(void);
+extern int zvmRegister(void);
 
 #endif /* __ZVM_DRIVER_H__ */
