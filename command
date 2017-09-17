@@ -1,0 +1,3 @@
+./autogen.sh --system
+make
+sudo make install
