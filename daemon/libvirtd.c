@@ -351,9 +351,6 @@ static void daemonInitialize(void)
 #ifdef WITH_BHYVE
     VIR_DAEMON_LOAD_MODULE(bhyveRegister, "bhyve");
 #endif
-#ifdef WITH_ZVM
-    VIR_DAEMON_LOAD_MODULE(zvmRegister, "zvm");
-#endif
 #ifdef WITH_VZ
     VIR_DAEMON_LOAD_MODULE(vzRegister, "vz");
 #endif
