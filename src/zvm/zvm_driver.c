@@ -110,8 +110,9 @@ zvmConnectOpen(virConnectPtr conn,
      if (VIR_ALLOC(zvm_driver) < 0)
          return VIR_DRV_OPEN_ERROR;
 
-     if (zvmExtractVersion(zvm_driver) < 0)
-         goto cleanup;
+     /* TODO Remove the comments below */
+     //if (zvmExtractVersion(zvm_driver) < 0)
+     //     goto cleanup;
 
      conn->privateData = zvm_driver;
 
