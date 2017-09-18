@@ -59,12 +59,53 @@ void zvmFreeDriver(struct zvm_driver *driver)
     VIR_FREE(driver);
 }
 
+static int zvmExtractVersionInfo(int *retversion)
+{
+    int ret = -1;
+    char *help = NULL;
+    const char *tmp;
+    unsigned long version;
+    virCommandPtr cmd = virCommandNewArgList(ZVM,"Query_API_Functional_Level","-T","zhcp",NULL);
+
+    if (retversion)
+        *retversion = 0;
+
+    virCommandSetOutputBuffer(cmd, &help);
+
+    if (virCommandRun(cmd, NULL) < 0)
+        goto cleanup;
+
+    tmp = help;
+
+    /* expected format: The API functional level is z/VM V<major>.<minor> */
+    if ((tmp = STRSKIP(tmp, "The API functional level is z/VM V")) == NULL)
+        goto cleanup;
+
+    if (virParseVersionString(tmp, &version, true) < 0)
+        goto cleanup;
+
+    if (retversion)
+        *retversion = version;
+
+    ret = 0;
+
+ cleanup:
+    virCommandFree(cmd);
+    VIR_FREE(help);
+
+    return ret;
+}
+
 int zvmExtractVersion(struct zvm_driver *driver)
 {
     if (driver->version > 0)
-        return 0;
+      return 0;
 
-    VIR_DEBUG("%s",ZVM);
+    if (zvmExtractVersionInfo(&driver->version) < 0) {
+      virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                     _("Could not extract zvm version"));
+      return -1;
+    }
 
     return 0;
 }
