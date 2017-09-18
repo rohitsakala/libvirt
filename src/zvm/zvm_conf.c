@@ -55,6 +55,7 @@ void zvmFreeDriver(struct zvm_driver *driver)
         return;
 
     virMutexDestroy(&driver->lock);
+
     VIR_FREE(driver);
 }
 
