@@ -43,13 +43,27 @@
 #include "virnodesuspend.h"
 #include "virstring.h"
 
+#define VIR_FROM_THIS VIR_FROM_ZVM
+
+VIR_LOG_INIT("zvm.zvm_driver");
+
 /* Free all memory associated with a vmware_driver structure */
-void
-zvmFreeDriver(struct zvm_driver *driver)
+
+void zvmFreeDriver(struct zvm_driver *driver)
 {
     if (!driver)
         return;
-        
+
     virMutexDestroy(&driver->lock);
     VIR_FREE(driver);
+}
+
+int zvmExtractVersion(struct zvm_driver *driver)
+{
+    if (driver->version > 0)
+        return 0;
+
+    VIR_DEBUG("%s",ZVM);
+
+    return 0;
 }

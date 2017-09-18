@@ -49,7 +49,6 @@
  #include "virrandom.h"
  #include "virstring.h"
  #include "cpu/cpu.h"
- #include "viraccessapicheck.h"
  #include "virhostcpu.h"
  #include "virhostmem.h"
  #include "virportallocator.h"
@@ -65,6 +64,16 @@ VIR_LOG_INIT("zvm.zvm_driver");
 static struct zvm_driver *zvm_driver;
 
 /* Functions */
+
+static void zvmDriverLock(struct zvm_driver *driver)
+{
+    virMutexLock(&driver->lock);
+}
+
+static void zvmDriverUnlock(struct zvm_driver *driver)
+{
+    virMutexUnlock(&driver->lock);
+}
 
 static virDrvOpenStatus
 zvmConnectOpen(virConnectPtr conn,
@@ -84,7 +93,7 @@ zvmConnectOpen(virConnectPtr conn,
          if (!conn->uri->scheme || STRNEQ(conn->uri->scheme, "zvm"))
              return VIR_DRV_OPEN_DECLINED;
 
-         if (conn->uri->server)
+         if (conn->uri->server != NULL)
              return VIR_DRV_OPEN_DECLINED;
 
          if (STRNEQ_NULLABLE(conn->uri->path, "/system")) {
@@ -93,20 +102,25 @@ zvmConnectOpen(virConnectPtr conn,
                            conn->uri->path);
             return VIR_DRV_OPEN_ERROR;
          }
-
-         if (zvm_driver == NULL) {
-             virReportError(VIR_ERR_INTERNAL_ERROR,
-                            "%s", _("ZVM state driver is not active"));
-             return VIR_DRV_OPEN_ERROR;
-         }
      }
 
-     if (virConnectOpenEnsureACL(conn) < 0)
+     /* We now know the URI is definitely for this driver, so beyond
+      * here, don't return DECLINED, always use ERROR */
+
+     if (VIR_ALLOC(zvm_driver) < 0)
          return VIR_DRV_OPEN_ERROR;
+
+     if (zvmExtractVersion(zvm_driver) < 0)
+         goto cleanup;
 
      conn->privateData = zvm_driver;
 
      return VIR_DRV_OPEN_SUCCESS;
+
+  cleanup:
+     zvmFreeDriver(zvm_driver);
+     return VIR_DRV_OPEN_ERROR;
+
 }
 
 static int
@@ -121,59 +135,23 @@ zvmConnectClose(virConnectPtr conn)
     return 0;
 }
 
-static char *zvmConnectGetHostname(virConnectPtr conn)
+static char *zvmConnectGetHostname(virConnectPtr conn ATTRIBUTE_UNUSED)
 {
-    if (virConnectGetHostnameEnsureACL(conn) < 0)
-        return NULL;
-
     return virGetHostname();
 }
 
-static int zvmStateCleanup(void)
+static const char *zvmConnectGetType(virConnectPtr conn ATTRIBUTE_UNUSED)
 {
-    if (!zvm_driver)
-        return -1;
-
-    virMutexDestroy(&zvm_driver->lock);
-    VIR_FREE(zvm_driver);
-
-    return 0;
-}
-
-static int zvmStateInitialize(bool privileged,
-                              virStateInhibitCallback callback ATTRIBUTE_UNUSED,
-                              void *opaque ATTRIBUTE_UNUSED)
-{
-
-    if (!privileged) {
-      VIR_INFO("Not running privileged, disabling driver");
-      return 0;
-    }
-
-    if (VIR_ALLOC(zvm_driver) < 0)
-        return -1;
-
-    if (virMutexInit(&zvm_driver->lock) < 0) {
-        VIR_FREE(zvm_driver);
-        return -1;
-    }
-
-    zvm_driver->hostsysinfo = virSysinfoRead();
-        goto cleanup;
-
-    return 0;
-
- cleanup:
-    zvmStateCleanup();
-    return -1;
-}
-
-static const char *zvmConnectGetType(virConnectPtr conn) {
-
-    if (virConnectGetTypeEnsureACL(conn) < 0)
-        return NULL;
-
     return "ZVM";
+}
+
+static int zvmConnectGetVersion(virConnectPtr conn, unsigned long *version)
+{
+    struct  zvm_driver *driver = conn->privateData;
+    zvmDriverLock(driver);
+    *version = driver->version;
+    zvmDriverUnlock(driver);
+    return 0;
 }
 
 /*----- Register with libvirt.c, and initialize zVM drivers. -----*/
@@ -186,16 +164,11 @@ static virHypervisorDriver zvmHypervisorDriver = {
     .connectClose = zvmConnectClose, /* 0.2.0 */
     .connectGetType = zvmConnectGetType, /* 0.2.0 */
     .connectGetHostname = zvmConnectGetHostname, /* 0.2.0 */
+    .connectGetVersion = zvmConnectGetVersion, /* 0.2.0 */
 };
 
 static virConnectDriver zvmConnectDriver = {
     .hypervisorDriver = &zvmHypervisorDriver,
-};
-
-static virStateDriver zvmStateDriver = {
-    .name = "ZVM",
-    .stateInitialize = zvmStateInitialize,
-    .stateCleanup = zvmStateCleanup,
 };
 
 int zvmRegister(void)
@@ -203,7 +176,6 @@ int zvmRegister(void)
     if (virRegisterConnectDriver(&zvmConnectDriver,
                                  true) < 0)
         return -1;
-    if (virRegisterStateDriver(&zvmStateDriver) < 0)
-        return -1;
+
     return 0;
 }

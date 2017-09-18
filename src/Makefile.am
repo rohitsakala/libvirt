@@ -1381,7 +1381,6 @@ noinst_LTLIBRARIES += libvirt_driver_zvm.la
 libvirt_la_BUILT_LIBADD += libvirt_driver_zvm.la
 libvirt_driver_zvm_la_CFLAGS = \
 		-I$(srcdir)/conf			\
-		-I$(srcdir)/access		\
 		$(AM_CFLAGS)
 libvirt_driver_zvm_la_SOURCES = $(ZVM_DRIVER_SOURCES)
 endif WITH_ZVM

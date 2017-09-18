@@ -34,8 +34,10 @@
 struct zvm_driver {
     virMutex lock;
     virSysinfoDefPtr hostsysinfo;
+    int version;
 };
 
 void zvmFreeDriver(struct zvm_driver *driver);
+int zvmExtractVersion(struct zvm_driver *driver);
 
 #endif
