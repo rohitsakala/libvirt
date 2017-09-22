@@ -111,6 +111,8 @@ virCapsPtr zvmCapsInit(void)
             ("Failed to query host NUMA topology, disabling NUMA capabilities");
     }
 
+    // TODO need to add features for guest and host if any
+    
     if (virCapabilitiesInitCaches(caps) < 0)
         goto error;
 

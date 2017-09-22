@@ -114,7 +114,6 @@ zvmConnectOpen(virConnectPtr conn,
      //if (zvmExtractVersion(zvm_driver) < 0)
      //     goto cleanup;
 
-     /* TODO Remove the comments below */
      if (!(zvm_driver->caps = zvmCapsInit()))
             goto cleanup;
 
