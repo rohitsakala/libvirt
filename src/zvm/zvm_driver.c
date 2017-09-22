@@ -114,6 +114,10 @@ zvmConnectOpen(virConnectPtr conn,
      //if (zvmExtractVersion(zvm_driver) < 0)
      //     goto cleanup;
 
+     /* TODO Remove the comments below */
+     if (!(zvm_driver->caps = zvmCapsInit()))
+            goto cleanup;
+
      conn->privateData = zvm_driver;
 
      return VIR_DRV_OPEN_SUCCESS;
@@ -155,6 +159,76 @@ static int zvmConnectGetVersion(virConnectPtr conn, unsigned long *version)
     return 0;
 }
 
+static int zvmConnectGetMaxVcpus(virConnectPtr conn ATTRIBUTE_UNUSED,
+                                    const char *type)
+{
+    if (type == NULL || STRCASEEQ(type, "zvm"))
+        return 64;
+
+    virReportError(VIR_ERR_INVALID_ARG,
+                   _("unknown type '%s'"), type);
+    return -1;
+}
+
+static int zvmNodeGetInfo(virConnectPtr conn ATTRIBUTE_UNUSED,
+                  virNodeInfoPtr nodeinfo)
+{
+    return virCapabilitiesGetNodeInfo(nodeinfo);
+}
+
+static int zvmNodeGetCPUStats(virConnectPtr conn ATTRIBUTE_UNUSED,
+                      int cpuNum,
+                      virNodeCPUStatsPtr params,
+                      int *nparams,
+                      unsigned int flags)
+{
+    return virHostCPUGetStats(cpuNum, params, nparams, flags);
+}
+
+static int zvmNodeGetMemoryStats(virConnectPtr conn ATTRIBUTE_UNUSED,
+                         int cellNum,
+                         virNodeMemoryStatsPtr params,
+                         int *nparams,
+                         unsigned int flags)
+{
+    return virHostMemGetStats(cellNum, params, nparams, flags);
+}
+
+static int zvmNodeGetCellsFreeMemory(virConnectPtr conn ATTRIBUTE_UNUSED,
+                             unsigned long long *freeMems,
+                             int startCell,
+                             int maxCells)
+{
+    return virHostMemGetCellsFree(freeMems, startCell, maxCells);
+}
+
+static unsigned long long zvmNodeGetFreeMemory(virConnectPtr conn ATTRIBUTE_UNUSED)
+{
+    unsigned long long freeMem;
+    if (virHostMemGetInfo(NULL, &freeMem) < 0)
+        return 0;
+    return freeMem;
+}
+
+static int zvmNodeGetCPUMap(virConnectPtr conn ATTRIBUTE_UNUSED,
+                    unsigned char **cpumap,
+                    unsigned int *online,
+                    unsigned int flags)
+{
+    return virHostCPUGetMap(cpumap, online, flags);
+}
+
+static char *zvmConnectGetCapabilities(virConnectPtr conn) {
+    struct zvm_driver *driver = conn->privateData;
+    char *ret;
+
+    zvmDriverLock(driver);
+    ret = virCapabilitiesFormatXML(driver->caps);
+    zvmDriverUnlock(driver);
+
+    return ret;
+}
+
 /*----- Register with libvirt.c, and initialize zVM drivers. -----*/
 
 /* The interface which we export upwards to libvirt.c. */
@@ -164,8 +238,16 @@ static virHypervisorDriver zvmHypervisorDriver = {
     .connectOpen = zvmConnectOpen, /* 0.2.0 */
     .connectClose = zvmConnectClose, /* 0.2.0 */
     .connectGetType = zvmConnectGetType, /* 0.2.0 */
-    .connectGetHostname = zvmConnectGetHostname, /* 0.2.0 */
     .connectGetVersion = zvmConnectGetVersion, /* 0.2.0 */
+    .connectGetHostname = zvmConnectGetHostname, /* 0.2.0 */
+    .connectGetMaxVcpus = zvmConnectGetMaxVcpus, /* 0.2.0 */
+    .connectGetCapabilities = zvmConnectGetCapabilities, /* 0.2.0 */
+    .nodeGetInfo = zvmNodeGetInfo, /* 0.2.0 */
+    .nodeGetCPUStats = zvmNodeGetCPUStats, /* 0.2.0 */
+    .nodeGetMemoryStats = zvmNodeGetMemoryStats, /* 0.2.0 */
+    .nodeGetCellsFreeMemory = zvmNodeGetCellsFreeMemory, /* 0.2.0 */
+    .nodeGetFreeMemory = zvmNodeGetFreeMemory, /* 0.2.0 */
+    .nodeGetCPUMap = zvmNodeGetCPUMap, /* 0.2.0 */
 };
 
 static virConnectDriver zvmConnectDriver = {

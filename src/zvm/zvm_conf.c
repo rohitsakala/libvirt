@@ -96,6 +96,57 @@ static int zvmExtractVersionInfo(int *retversion)
     return ret;
 }
 
+virCapsPtr zvmCapsInit(void)
+{
+    virCapsPtr caps;
+    virCapsGuestPtr guest;
+
+    if ((caps = virCapabilitiesNew(virArchFromHost(),
+                                   false, false)) == NULL)
+        goto error;
+
+    if (virCapabilitiesInitNUMA(caps) < 0) {
+        virCapabilitiesFreeNUMAInfo(caps);
+        VIR_WARN
+            ("Failed to query host NUMA topology, disabling NUMA capabilities");
+    }
+
+    if (virCapabilitiesInitCaches(caps) < 0)
+        goto error;
+
+    if (virNodeSuspendGetTargetMask(&caps->host.powerMgmt) < 0)
+        VIR_WARN("Failed to get host power management capabilities");
+
+    if (virGetHostUUID(caps->host.host_uuid)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       "%s", _("cannot get the host uuid"));
+        goto error;
+    }
+
+    if ((guest = virCapabilitiesAddGuest(caps,
+                                         VIR_DOMAIN_OSTYPE_LINUX,
+                                         caps->host.arch,
+                                         NULL,
+                                         NULL,
+                                         0,
+                                         NULL)) == NULL)
+        goto error;
+
+    if (virCapabilitiesAddGuestDomain(guest,
+                                      VIR_DOMAIN_VIRT_ZVM,
+                                      NULL,
+                                      NULL,
+                                      0,
+                                      NULL) == NULL)
+        goto error;
+
+    return caps;
+
+    error:
+       virObjectUnref(caps);
+       return NULL;
+}
+
 int zvmExtractVersion(struct zvm_driver *driver)
 {
     if (driver->version > 0)

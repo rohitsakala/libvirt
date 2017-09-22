@@ -22,7 +22,7 @@
 # define ZVM_CONF_H
 
 # include "internal.h"
-# include "libvirt_internal.h"
+# include "virdomainobjlist.h"
 # include "virerror.h"
 # include "virthread.h"
 # include "virsysinfo.h"
@@ -34,10 +34,12 @@
 struct zvm_driver {
     virMutex lock;
     virSysinfoDefPtr hostsysinfo;
+    virCapsPtr caps;
     int version;
 };
 
 void zvmFreeDriver(struct zvm_driver *driver);
 int zvmExtractVersion(struct zvm_driver *driver);
+virCapsPtr zvmCapsInit(void);
 
 #endif
