@@ -228,25 +228,84 @@ static char *zvmConnectGetCapabilities(virConnectPtr conn) {
     return ret;
 }
 
+static virDomainPtr
+zvmDomainCreateXML(virConnectPtr conn, const char *xml,
+                      unsigned int flags)
+{
+    struct zvm_driver *driver = conn->privateData;
+    virDomainPtr ret = NULL;
+    virDomainDefPtr def;
+    virDomainObjPtr dom = NULL;
+    virObjectEventPtr event = NULL;
+    unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
+
+    virCheckFlags(VIR_DOMAIN_START_VALIDATE, NULL);
+
+    if (flags & VIR_DOMAIN_START_VALIDATE)
+        parse_flags |= VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
+
+    zvmDriverLock(driver);
+
+    if ((def = virDomainDefParseString(xml, privconn->caps, privconn->xmlopt,
+                                       NULL, parse_flags)) == NULL)
+        goto cleanup;
+
+    if (testDomainGenerateIfnames(def) < 0)
+        goto cleanup;
+
+    if (!(dom = virDomainObjListAdd(privconn->domains,
+                                    def,
+                                    privconn->xmlopt,
+                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
+                                    VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
+                                    NULL)))
+        goto cleanup;
+    def = NULL;
+
+    if (testDomainStartState(privconn, dom, VIR_DOMAIN_RUNNING_BOOTED) < 0) {
+        if (!dom->persistent) {
+            virDomainObjListRemove(privconn->domains, dom);
+            dom = NULL;
+        }
+        goto cleanup;
+    }
+
+    event = virDomainEventLifecycleNewFromObj(dom,
+                                     VIR_DOMAIN_EVENT_STARTED,
+                                     VIR_DOMAIN_EVENT_STARTED_BOOTED);
+
+    ret = virGetDomain(conn, dom->def->name, dom->def->uuid, dom->def->id);
+
+  cleanup:
+    if (dom)
+        virObjectUnlock(dom);
+    testObjectEventQueue(privconn, event);
+    virDomainDefFree(def);
+    testDriverUnlock(privconn);
+    return ret;
+}
+
 /*----- Register with libvirt.c, and initialize zVM drivers. -----*/
 
 /* The interface which we export upwards to libvirt.c. */
 
 static virHypervisorDriver zvmHypervisorDriver = {
     .name = "ZVM",
-    .connectOpen = zvmConnectOpen, /* 0.2.0 */
-    .connectClose = zvmConnectClose, /* 0.2.0 */
-    .connectGetType = zvmConnectGetType, /* 0.2.0 */
-    .connectGetVersion = zvmConnectGetVersion, /* 0.2.0 */
-    .connectGetHostname = zvmConnectGetHostname, /* 0.2.0 */
-    .connectGetMaxVcpus = zvmConnectGetMaxVcpus, /* 0.2.0 */
-    .connectGetCapabilities = zvmConnectGetCapabilities, /* 0.2.0 */
-    .nodeGetInfo = zvmNodeGetInfo, /* 0.2.0 */
-    .nodeGetCPUStats = zvmNodeGetCPUStats, /* 0.2.0 */
-    .nodeGetMemoryStats = zvmNodeGetMemoryStats, /* 0.2.0 */
-    .nodeGetCellsFreeMemory = zvmNodeGetCellsFreeMemory, /* 0.2.0 */
-    .nodeGetFreeMemory = zvmNodeGetFreeMemory, /* 0.2.0 */
-    .nodeGetCPUMap = zvmNodeGetCPUMap, /* 0.2.0 */
+    .connectOpen = zvmConnectOpen, /* 1.2.14 */
+    .connectClose = zvmConnectClose, /* 1.2.14 */
+    .connectGetType = zvmConnectGetType, /* 1.2.14 */
+    .connectGetVersion = zvmConnectGetVersion, /* 1.2.14 */
+    .connectGetHostname = zvmConnectGetHostname, /* 1.2.14 */
+    .connectGetMaxVcpus = zvmConnectGetMaxVcpus, /* 1.2.14 */
+    .connectGetCapabilities = zvmConnectGetCapabilities, /* 1.2.14 */
+    .connectListDomains = zvmConnectListDomains, /* 1.2.14 */
+    .nodeGetInfo = zvmNodeGetInfo, /* 1.2.14 */
+    .nodeGetCPUStats = zvmNodeGetCPUStats, /* 1.2.14 */
+    .nodeGetMemoryStats = zvmNodeGetMemoryStats, /* 1.2.14 */
+    .nodeGetCellsFreeMemory = zvmNodeGetCellsFreeMemory, /* 1.2.14 */
+    .nodeGetFreeMemory = zvmNodeGetFreeMemory, /* 1.2.14 */
+    .nodeGetCPUMap = zvmNodeGetCPUMap, /* 1.2.14 */
+    .domainCreateXML = zvmDomainCreateXML, /* 0.8.7 */
 };
 
 static virConnectDriver zvmConnectDriver = {
