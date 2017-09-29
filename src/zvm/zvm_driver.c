@@ -136,9 +136,8 @@ zvmConnectOpen(virConnectPtr conn,
      if (VIR_ALLOC(zvm_driver) < 0)
          return VIR_DRV_OPEN_ERROR;
 
-     /* TODO Remove the comments below */
-     //if (zvmExtractVersion(zvm_driver) < 0)
-     //     goto cleanup;
+     if (zvmExtractVersion(zvm_driver) < 0)
+            goto cleanup;
 
      if (!(zvm_driver->domains = virDomainObjListNew()))
             goto cleanup;
