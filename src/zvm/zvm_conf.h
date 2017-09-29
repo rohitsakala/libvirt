@@ -31,9 +31,13 @@
 
 # define VIR_FROM_THIS VIR_FROM_ZVM
 
+# define ZVM_CONF_FILE "/opt/test.conf"
+
 struct zvm_driver {
     virMutex lock;
     virSysinfoDefPtr hostsysinfo;
+    virDomainXMLOptionPtr xmlopt;
+    virDomainObjListPtr domains;
     virCapsPtr caps;
     int version;
 };
@@ -41,5 +45,6 @@ struct zvm_driver {
 void zvmFreeDriver(struct zvm_driver *driver);
 int zvmExtractVersion(struct zvm_driver *driver);
 virCapsPtr zvmCapsInit(void);
+char * virZVMFormatConfig(virDomainDefPtr def);
 
 #endif

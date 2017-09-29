@@ -112,7 +112,7 @@ virCapsPtr zvmCapsInit(void)
     }
 
     // TODO need to add features for guest and host if any
-    
+
     if (virCapabilitiesInitCaches(caps) < 0)
         goto error;
 
@@ -147,6 +147,40 @@ virCapsPtr zvmCapsInit(void)
     error:
        virObjectUnref(caps);
        return NULL;
+}
+
+char *
+virZVMFormatConfig(virDomainDefPtr def)
+{
+    char *zvm_file = NULL;
+    unsigned char zero[VIR_UUID_BUFLEN];
+    virBuffer buffer = VIR_BUFFER_INITIALIZER;
+
+
+    memset(zero, 0, VIR_UUID_BUFLEN);
+
+    if (def->virtType != VIR_DOMAIN_VIRT_ZVM) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                      _("Expecting virt type to be '%s' but found '%s'"),
+                      virDomainVirtTypeToString(VIR_DOMAIN_VIRT_ZVM),
+                      virDomainVirtTypeToString(def->virtType));
+        return NULL;
+    }
+
+    /* Add User Details */
+    virBufferAddLit(&buffer, "USER TEST TEST 32M 128M ABG\n");
+
+    /* Get final zvm_file output */
+    if (virBufferCheckError(&buffer) < 0)
+        goto cleanup;
+
+    zvm_file = virBufferContentAndReset(&buffer);
+
+  cleanup:
+    if (zvm_file == NULL)
+        virBufferFreeAndReset(&buffer);
+
+    return zvm_file;
 }
 
 int zvmExtractVersion(struct zvm_driver *driver)

@@ -65,6 +65,32 @@ static struct zvm_driver *zvm_driver;
 
 /* Functions */
 
+static int
+zvmDomainDefPostParse(virDomainDefPtr def ATTRIBUTE_UNUSED,
+                         virCapsPtr caps ATTRIBUTE_UNUSED,
+                         unsigned int parseFlags ATTRIBUTE_UNUSED,
+                         void *opaque ATTRIBUTE_UNUSED,
+                         void *parseOpaque ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
+
+static int
+zvmDomainDeviceDefPostParse(virDomainDeviceDefPtr dev ATTRIBUTE_UNUSED,
+                               const virDomainDef *def ATTRIBUTE_UNUSED,
+                               virCapsPtr caps ATTRIBUTE_UNUSED,
+                               unsigned int parseFlags ATTRIBUTE_UNUSED,
+                               void *opaque ATTRIBUTE_UNUSED,
+                               void *parseOpaque ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
+
+virDomainDefParserConfig zvmDomainDefParserConfig = {
+    .devicesPostParseCallback = zvmDomainDeviceDefPostParse,
+    .domainPostParseCallback = zvmDomainDefPostParse,
+};
+
 static void zvmDriverLock(struct zvm_driver *driver)
 {
     virMutexLock(&driver->lock);
@@ -114,7 +140,14 @@ zvmConnectOpen(virConnectPtr conn,
      //if (zvmExtractVersion(zvm_driver) < 0)
      //     goto cleanup;
 
+     if (!(zvm_driver->domains = virDomainObjListNew()))
+            goto cleanup;
+
      if (!(zvm_driver->caps = zvmCapsInit()))
+            goto cleanup;
+
+     if (!(zvm_driver->xmlopt = virDomainXMLOptionNew(&zvmDomainDefParserConfig,
+                                                              NULL, NULL, NULL, NULL)))
             goto cleanup;
 
      conn->privateData = zvm_driver;
@@ -228,6 +261,39 @@ static char *zvmConnectGetCapabilities(virConnectPtr conn) {
     return ret;
 }
 
+static int
+zvmStartVM(virDomainObjPtr vm)
+{
+    char *help = NULL;
+    //const char *tmp;
+    int ret = -1;
+
+    virCommandPtr cmd = virCommandNewArgList(ZVM,"Image_Create_DM","-f",ZVM_CONF_FILE,"-T","test",NULL);
+
+    virCommandSetOutputBuffer(cmd, &help);
+
+    if (virCommandRun(cmd, NULL) < 0)
+        goto cleanup;
+
+    //tmp = help;
+
+    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_SHUTOFF) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                   _("domain is not in shutoff state"));
+        ret = -1;
+    }
+
+    virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, VIR_DOMAIN_RUNNING_BOOTED);
+
+    ret = 0;
+
+  cleanup:
+    virCommandFree(cmd);
+    VIR_FREE(help);
+
+    return ret;
+}
+
 static virDomainPtr
 zvmDomainCreateXML(virConnectPtr conn, const char *xml,
                       unsigned int flags)
@@ -235,8 +301,8 @@ zvmDomainCreateXML(virConnectPtr conn, const char *xml,
     struct zvm_driver *driver = conn->privateData;
     virDomainPtr ret = NULL;
     virDomainDefPtr def;
+    char *zvm_file = NULL;
     virDomainObjPtr dom = NULL;
-    virObjectEventPtr event = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
 
     virCheckFlags(VIR_DOMAIN_START_VALIDATE, NULL);
@@ -246,43 +312,53 @@ zvmDomainCreateXML(virConnectPtr conn, const char *xml,
 
     zvmDriverLock(driver);
 
-    if ((def = virDomainDefParseString(xml, privconn->caps, privconn->xmlopt,
+    if ((def = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
                                        NULL, parse_flags)) == NULL)
         goto cleanup;
 
-    if (testDomainGenerateIfnames(def) < 0)
+    /* generate zvm file */
+    zvm_file = virZVMFormatConfig(def);
+    if (zvm_file == NULL)
         goto cleanup;
 
-    if (!(dom = virDomainObjListAdd(privconn->domains,
+    /* create zvm file */
+    if (virFileWriteStr(ZVM_CONF_FILE, zvm_file, S_IRUSR|S_IWUSR) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Failed to write zvm file '%s'"), ZVM_CONF_FILE);
+        goto cleanup;
+    }
+
+    if (!(dom = virDomainObjListAdd(driver->domains,
                                     def,
-                                    privconn->xmlopt,
+                                    driver->xmlopt,
                                     VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
                                     VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
                                     NULL)))
         goto cleanup;
+
+    VIR_DEBUG("Part 3");
+
     def = NULL;
 
-    if (testDomainStartState(privconn, dom, VIR_DOMAIN_RUNNING_BOOTED) < 0) {
+    if (zvmStartVM(dom) < 0) {
         if (!dom->persistent) {
-            virDomainObjListRemove(privconn->domains, dom);
+            virDomainObjListRemove(driver->domains, dom);
             dom = NULL;
         }
         goto cleanup;
     }
 
-    event = virDomainEventLifecycleNewFromObj(dom,
-                                     VIR_DOMAIN_EVENT_STARTED,
-                                     VIR_DOMAIN_EVENT_STARTED_BOOTED);
+    VIR_DEBUG("Part 4");
 
     ret = virGetDomain(conn, dom->def->name, dom->def->uuid, dom->def->id);
 
   cleanup:
-    if (dom)
-        virObjectUnlock(dom);
-    testObjectEventQueue(privconn, event);
-    virDomainDefFree(def);
-    testDriverUnlock(privconn);
-    return ret;
+      virDomainDefFree(def);
+      VIR_FREE(zvm_file);
+      if (dom)
+          virObjectUnlock(dom);
+      zvmDriverUnlock(zvm_driver);
+      return ret;
 }
 
 /*----- Register with libvirt.c, and initialize zVM drivers. -----*/
@@ -298,7 +374,6 @@ static virHypervisorDriver zvmHypervisorDriver = {
     .connectGetHostname = zvmConnectGetHostname, /* 1.2.14 */
     .connectGetMaxVcpus = zvmConnectGetMaxVcpus, /* 1.2.14 */
     .connectGetCapabilities = zvmConnectGetCapabilities, /* 1.2.14 */
-    .connectListDomains = zvmConnectListDomains, /* 1.2.14 */
     .nodeGetInfo = zvmNodeGetInfo, /* 1.2.14 */
     .nodeGetCPUStats = zvmNodeGetCPUStats, /* 1.2.14 */
     .nodeGetMemoryStats = zvmNodeGetMemoryStats, /* 1.2.14 */

@@ -18679,7 +18679,6 @@ virDomainDefParseXML(xmlDocPtr xml,
     }
     VIR_FREE(nodes);
 
-
     /* analysis of the smartcard devices */
     if ((n = virXPathNodeSet("./devices/smartcard", ctxt, &nodes)) < 0)
         goto error;
@@ -19196,6 +19195,7 @@ virDomainDefParseXML(xmlDocPtr xml,
     /* we have to make a copy of all of the callback pointers here since
      * we won't have the virCaps structure available during free
      */
+
     def->ns = xmlopt->ns;
 
     if (def->ns.parse &&

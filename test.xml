@@ -1,0 +1,9 @@
+<domain type="zvm">
+<name>test</name>
+        <memory unit='KiB'>128000</memory>
+	    <currentMemory unit='KiB'>32000</currentMemory>
+	        <os>
+		      <type>linux</type>
+		          </os>
+			  </domain>
+

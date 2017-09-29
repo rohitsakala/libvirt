@@ -246,20 +246,31 @@ virDomainObjListAddLocked(virDomainObjListPtr doms,
         *oldDef = NULL;
 
     virUUIDFormat(def->uuid, uuidstr);
-
     /* See if a VM with matching UUID already exists */
     if ((vm = virHashLookup(doms->objs, uuidstr))) {
+      VIR_DEBUG("Part 1");
+
         virObjectLock(vm);
+        VIR_DEBUG("Part 1");
+
         /* UUID matches, but if names don't match, refuse it */
         if (STRNEQ(vm->def->name, def->name)) {
+          VIR_DEBUG("Part 1");
+
             virUUIDFormat(vm->def->uuid, uuidstr);
+            VIR_DEBUG("Part 1");
+
             virReportError(VIR_ERR_OPERATION_FAILED,
                            _("domain '%s' is already defined with uuid %s"),
                            vm->def->name, uuidstr);
+                           VIR_DEBUG("Part 1");
+
             goto error;
         }
+        VIR_DEBUG("Part 1");
 
         if (flags & VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE) {
+          VIR_DEBUG("Part 2");
             /* UUID & name match, but if VM is already active, refuse it */
             if (virDomainObjIsActive(vm)) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
@@ -267,19 +278,24 @@ virDomainObjListAddLocked(virDomainObjListPtr doms,
                                vm->def->name);
                 goto error;
             }
+            VIR_DEBUG("Part 3");
             if (!vm->persistent) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
                                _("domain '%s' is already being started"),
                                vm->def->name);
                 goto error;
             }
+            VIR_DEBUG("Part 4");
         }
 
         virDomainObjAssignDef(vm,
                               def,
                               !!(flags & VIR_DOMAIN_OBJ_LIST_ADD_LIVE),
                               oldDef);
+
+                            VIR_DEBUG("Part 5");
     } else {
+      VIR_DEBUG("Part 6");
         /* UUID does not match, but if a name matches, refuse it */
         if ((vm = virHashLookup(doms->objsName, def->name))) {
             virObjectLock(vm);
@@ -290,6 +306,8 @@ virDomainObjListAddLocked(virDomainObjListPtr doms,
             goto error;
         }
 
+        VIR_DEBUG("Part 7");
+
         if (!(vm = virDomainObjNew(xmlopt)))
             goto cleanup;
         vm->def = def;
@@ -299,11 +317,14 @@ virDomainObjListAddLocked(virDomainObjListPtr doms,
             virObjectUnref(vm);
             return NULL;
         }
+        VIR_DEBUG("Part 8");
 
         if (virHashAddEntry(doms->objsName, def->name, vm) < 0) {
             virHashRemoveEntry(doms->objs, uuidstr);
             return NULL;
         }
+
+        VIR_DEBUG("Part 9");
 
         /* Since domain is in two hash tables, increment the
          * reference counter */
