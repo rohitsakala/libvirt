@@ -264,7 +264,7 @@ static int
 zvmStartVM(virDomainObjPtr vm)
 {
     char *help = NULL;
-    //const char *tmp;
+    const char *tmp;
     int ret = -1;
 
     virCommandPtr cmd = virCommandNewArgList(ZVM,"Image_Create_DM","-f",ZVM_CONF_FILE,"-T","test",NULL);
@@ -274,7 +274,9 @@ zvmStartVM(virDomainObjPtr vm)
     if (virCommandRun(cmd, NULL) < 0)
         goto cleanup;
 
-    //tmp = help;
+    tmp = help;
+
+    VIR_DEBUG("%s",tmp);
 
     if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_SHUTOFF) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
