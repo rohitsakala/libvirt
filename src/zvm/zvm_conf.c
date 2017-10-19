@@ -168,7 +168,8 @@ virZVMFormatConfig(virDomainDefPtr def)
     }
 
     /* Add User Details */
-    virBufferAddLit(&buffer, "USER TEST TEST 32M 128M ABG\n");
+    
+    virBufferAddLit(&buffer, "USER TEST WD5JU8QP 32M 128M ABG\n");
 
     /* Get final zvm_file output */
     if (virBufferCheckError(&buffer) < 0)
